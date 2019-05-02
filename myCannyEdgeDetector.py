@@ -18,70 +18,6 @@ class SEdgel:
 		self.length = 1 # length of edgel ?
 		self.isMarked = 0
 
-def DownSampling(I, filter):
-	''' down sample rate is 2'''
-	filter = np.flipud(filter)
-	filter = np.fliplr(filter)
-	filter_sum = filter.sum()
-	if filter_sum == 0:
-		filter_sum = 1
-	k0 = int((filter.shape[0]-1)/2)
-	k1 = int((filter.shape[1]-1)/2)
-	I_zeropadded = np.zeros((I.shape[0]+ 2*k0, I.shape[1]+ 2*k1))
-	I_zeropadded[k0:(k0+I.shape[0]), k1:(k1+I.shape[1])] = I
-	Result = np.zeros((int(I.shape[0]/2), int(I.shape[1]/2)))
-	for i in range(0, int(I.shape[0]/2)):
-		for j in range(0, int(I.shape[1]/2)):
-			Result[i][j] = np.multiply(filter, I_zeropadded[i*2:i*2+filter.shape[0],j*2:j*2+filter.shape[1]]).sum()
-			Result[i][j] = Result[i][j]/filter_sum
-	return Result
-
-def UpSampling(I):
-	filter = np.array([6,1,0,0,4,4,0,0,1,6,1,0,0,4,4,0,0,1,6,1,0,0,4,4,0,0,1,6,0,0,0,4])
-	filter = filter.reshape((4, 8))
-	print(filter)
-	Result = np.zeros((I.shape[0]*2, I.shape[1]*2))
-	I_addzero = np.zeros((I.shape[0]*2, I.shape[1]*2))
-	for i in range(I.shape[0]):
-		for j in range(I.shape[1]):
-			I_addzero[2*i][2*j] = I[i][j]
-	filter = np.flipud(filter)
-	filter = np.fliplr(filter)
-	filter_sum = filter.sum()/2
-	if filter_sum == 0:
-		filter_sum = 1
-	k0 = int((filter.shape[0])/2)
-	k1 = int((filter.shape[1])/2)
-	I_zeropadded = np.zeros((I_addzero.shape[0]+ 2*k0, I_addzero.shape[1]+ 2*k1))
-	I_zeropadded[k0:(k0+I_addzero.shape[0]), k1:(k1+I_addzero.shape[1])] = I_addzero
-	I_result = np.zeros(I_addzero.shape)
-	for i in range(0, I_addzero.shape[0]):
-		for j in range(0, I_addzero.shape[1]):
-			I_result[i][j] = np.multiply(filter, I_zeropadded[i:i+filter.shape[0],j:j+filter.shape[1]]).sum()
-			I_result[i][j] = I_result[i][j]/filter_sum
-
-	#I_filtered_zeropadding = np.zeros((I.shape[0]*2+ 2*k0, I.shape[1]*2 + 2*k1))
-	#for i in range(k0, k0+I.shape[0]*2):
-	#	for j in range(k1, k1+I.shape[1]*2):
-	#		for k in range(-k0, k0+1):
-	#			for l in range(-k1, k1+1):
-	#				I_filtered_zeropadding[i][j] = I_filtered_zeropadding[i][j] + filter[k0+k][k1+l]*I_zeropadded[i-2*k][j-2*l]
-	#	I_filtered_zeropadding[i][j] = I_filtered_zeropadding[i][j]/filter_sum
-	#Result = I_filtered_zeropadding[k0:k0+I.shape[0]*2,k1:k1+I.shape[1]*2]
-	return I_result
-
-def pyramid(I, levels):
-	G = I.copy()
-	gp = [G]
-	for i in range(levels):
-		#G = cv2.pyrDown(G) 
-		G = DownSampling(G, kernel)
-		#print("downsample level {}, has shape {}".format(i,G.shape))
-		msg = "level{}.jpg".format(i)
-		cv2.imwrite(msg,G)
-		gp.append(G)
-	return gp
-
 def getmidpoint(endpoint1, endpoint2):
 	S1 = abs(S[endpoint1[0]][endpoint1[1]])
 	S2 = abs(S[endpoint2[0]][endpoint2[1]])
@@ -115,30 +51,28 @@ I = cv2.imread("Lenna.png")
 I = grayscale.gray(I)
 ''' 1. Blur the picture '''
 # picture filter module I wrote.
-kernel = getKernel(1,2)
-B = filter.myImageFilter(I, kernel)
+#kernel = getKernel(0.6,2)
+#kernel_k = getKernel(0.72,2)
+#B = filter.myImageFilter(I, kernel)
+#B_k = filter.myImageFilter(I, kernel_k)
+#B_doG = (B_k-B)/0.12
 
+kernel_dog = np.array([\
+	0,1,1,2,2,2,1,1,0,\
+	1,2,4,5,5,5,4,2,1,\
+	1,4,5,3,0,3,5,4,1,\
+	2,5,3,-12,-24,-12,3,5,2,\
+	2,5,0,-24,-40,-24,0,5,2,\
+	2,5,3,-12,-24,-12,3,5,2,\
+	1,4,5,3,0,3,5,4,1,\
+	1,2,4,5,5,5,4,2,1,\
+	0,1,1,2,2,2,1,1,0])
+kernel_dog = kernel_dog.reshape((9,9))
+B_doG = filter.myImageFilter(I, kernel_dog)
 #B = gaussian_filter(I, sigma=1)
-cv2.imwrite('Lenna_smoothed.jpg', B)
+cv2.imwrite('Lenna_doG.jpg', B_doG)
 
-''' 2. Build a pyramid '''
-levels = 6
-P = pyramid(B, levels)
-print("Build Gaussian Pyramid of size", levels)
-
-''' 3. Subtract an interpolated coarser-level pyramid image from the original resolution blurred image'''
-interpolated_level = 2
-print("Use level {} image for interpolation and subtraction".format(interpolated_level))
-I_interpolated = P[interpolated_level].copy()
-for i in range(interpolated_level):
-	I_interpolated = cv2.pyrUp(I_interpolated) #TODO
-	#I_interpolated = UpSampling(I_interpolated)
-	#msg = "intepolation_level{}.jpg".format(i)
-	#cv2.imwrite(msg,I_interpolated)
-
-print("shape after interpolation",I_interpolated.shape)
-S = B - I_interpolated
-cv2.imwrite("Lenna_diff.jpg",S)
+S = B_doG
 
 ''' 4. count zero crosses in a 2x2 window; 5. 6. 7. 8.'''
 Edges = []
@@ -184,20 +118,28 @@ for i in range(I.shape[0]-1):
 				Edges.append(edge)
 print("Detected edge suspect number: ", len(Edges))
 '''Extra: Thresholding'''
-hThreshold = 5.4
-lThreshold = 0
+hThreshold = 1550
+lThreshold = -400
 Thresholding = np.zeros(I.shape)
+sum = 0
+Strength = np.zeros(I.shape)
 for i in Edges:
 	x = int(i.x)
 	y = int(i.y)
+	Strength[x][y] = i.strength
 	if i.strength > hThreshold:
 		Thresholding[x][y] = 1
+		sum = sum + 1
 	else:
 		if i.strength > lThreshold:
 			Thresholding[x][y] = 2
+print("Detected edge number first round:", sum)
+cv2.imwrite("Lenna_strength.jpg", Strength)
+sum = 0
 for i in range(Thresholding.shape[0]-1):
 	for j in range(Thresholding.shape[1]-1):
 		 if (Thresholding[i][j] == 2):
+		 	sum = sum + 1
 		 	if Thresholding[i-1][j]==1 or Thresholding[i-1][j-1] == 1 \
 		 	 or Thresholding[i+1][j]==1  or Thresholding[i+1][j+1]==1 \
 		 	 or Thresholding[i][j-1]==1  or Thresholding[i+1][j-1]==1 \
@@ -205,6 +147,7 @@ for i in range(Thresholding.shape[0]-1):
 		 	 Thresholding[i][j] == 1
 		 	else:
 		 		Thresholding[i][j] == 0
+print("Detected middle strength points:", sum)
 '''Final Outcome'''
 Result = np.zeros(I.shape)
 sum = 0
